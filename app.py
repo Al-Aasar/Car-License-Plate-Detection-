@@ -9,8 +9,8 @@ model = YOLO("best.pt")
 
 reader = easyocr.Reader(['en'])
 
-st.title("🚘 Automatic License Plate Recognition (ALPR)")
-st.write("Upload an image of a car to detect and extract the license plate text.")
+st.markdown("<h2 style='text-align: center;'>🚘 Automatic License Plate Recognition</h2>", unsafe_allow_html=True)
+st.markdown("<h6 style='text-align: center;'>Upload an image of a car to detect and extract the license plate text.</h6>", unsafe_allow_html=True)
 
 
 uploaded_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
