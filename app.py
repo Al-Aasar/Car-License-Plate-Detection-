@@ -19,8 +19,12 @@ def load_reader():
 model = load_model()
 reader = load_reader()
 
+ALLOWED = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
 st.markdown("<h2 style='text-align: center;'>🚘 Automatic License Plate Recognition</h2>", unsafe_allow_html=True)
 st.markdown("<h6 style='text-align: center;'>Upload an image of a car to detect and extract the license plate text.</h6>", unsafe_allow_html=True)
+
+crop_margins = st.checkbox("Crop plate margins (European-style plates)", value=True)
 
 uploaded_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
 
@@ -46,28 +50,32 @@ if uploaded_file is not None:
 
             st.image(plate, caption="🔹 Detected Plate", width="content")
 
+            # Preprocessing: grayscale + optional margin crop + upscale
             gray = cv2.cvtColor(plate, cv2.COLOR_RGB2GRAY)
-            blur = cv2.GaussianBlur(gray, (3, 3), 0)
-            thresh = cv2.adaptiveThreshold(
-                blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                cv2.THRESH_BINARY, 11, 2
-            )
+
+            if crop_margins:
+                h, w = gray.shape
+                gray = gray[int(h * 0.05):int(h * 0.75), int(w * 0.15):int(w * 0.95)]
+
             resized = cv2.resize(
-                thresh, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC
+                gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC
             )
 
-            st.image(resized, caption="✨ Enhanced Plate (Preprocessed)", width="content")
+            st.image(resized, caption="✨ Enhanced Plate", width="content")
 
-            results_ocr = reader.readtext(resized)
+            # OCR
+            results_ocr = reader.readtext(resized, allowlist=ALLOWED)
 
             st.subheader("📖 Extracted Plate Text:")
             if results_ocr:
-                results_ocr.sort(
-                    key=lambda x: (x[0][2][0] - x[0][0][0]) * (x[0][2][1] - x[0][0][1]),
-                    reverse=True
-                )
-                biggest_text = results_ocr[0][1]
-                st.success(biggest_text)
+                # Sort left-to-right, keep confident detections, and join
+                results_ocr.sort(key=lambda x: x[0][0][0])
+                text = " ".join(t[1] for t in results_ocr if t[2] > 0.3)
+
+                if text:
+                    st.success(text)
+                else:
+                    st.warning("⚠️ Text detected but confidence is too low.")
             else:
                 st.warning("⚠️ No text detected.")
 
