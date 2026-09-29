@@ -25,6 +25,8 @@ st.markdown("<h2 style='text-align: center;'>🚘 Automatic License Plate Recogn
 st.markdown("<h6 style='text-align: center;'>Upload an image of a car to detect and extract the license plate text.</h6>", unsafe_allow_html=True)
 
 crop_margins = st.checkbox("Crop plate margins (European-style plates)", value=True)
+use_otsu = st.checkbox("Use Otsu thresholding (try if letters are misread)", value=False)
+debug = st.checkbox("Show raw OCR output (debug)", value=False)
 
 uploaded_file = st.file_uploader("Upload Image", type=["jpg", "png", "jpeg"])
 
@@ -50,15 +52,18 @@ if uploaded_file is not None:
 
             st.image(plate, caption="🔹 Detected Plate", width="content")
 
-            # Preprocessing: grayscale + optional margin crop + upscale
+            # Preprocessing: grayscale + optional margin crop + optional Otsu + upscale
             gray = cv2.cvtColor(plate, cv2.COLOR_RGB2GRAY)
 
             if crop_margins:
                 h, w = gray.shape
                 gray = gray[int(h * 0.05):int(h * 0.75), int(w * 0.15):int(w * 0.95)]
 
+            if use_otsu:
+                _, gray = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
             resized = cv2.resize(
-                gray, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC
+                gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC
             )
 
             st.image(resized, caption="✨ Enhanced Plate", width="content")
@@ -67,11 +72,11 @@ if uploaded_file is not None:
             results_ocr = reader.readtext(
                 resized,
                 allowlist=ALLOWED,
-                text_threshold=0.6,
-                low_text=0.3,
-                mag_ratio=1.5,
                 width_ths=0.3,
             )
+
+            if debug:
+                st.write([(t[1], round(float(t[2]), 3)) for t in results_ocr])
 
             st.subheader("📖 Extracted Plate Text:")
 
@@ -79,12 +84,12 @@ if uploaded_file is not None:
             if results_ocr:
                 heights = [abs(t[0][2][1] - t[0][0][1]) for t in results_ocr]
                 max_h = max(heights)
-                results_ocr = [t for t, hh in zip(results_ocr, heights) if hh > 0.6 * max_h]
+                results_ocr = [t for t, hh in zip(results_ocr, heights) if hh > 0.4 * max_h]
 
             if results_ocr:
-                # Sort left-to-right, keep confident detections, and join
+                # Sort left-to-right, keep detections above a low confidence, and join
                 results_ocr.sort(key=lambda x: x[0][0][0])
-                text = " ".join(t[1] for t in results_ocr if t[2] > 0.3)
+                text = " ".join(t[1] for t in results_ocr if t[2] > 0.1)
 
                 if text:
                     st.success(text)
