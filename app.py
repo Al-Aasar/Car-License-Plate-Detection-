@@ -58,15 +58,29 @@ if uploaded_file is not None:
                 gray = gray[int(h * 0.05):int(h * 0.75), int(w * 0.15):int(w * 0.95)]
 
             resized = cv2.resize(
-                gray, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC
+                gray, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC
             )
 
             st.image(resized, caption="✨ Enhanced Plate", width="content")
 
             # OCR
-            results_ocr = reader.readtext(resized, allowlist=ALLOWED)
+            results_ocr = reader.readtext(
+                resized,
+                allowlist=ALLOWED,
+                text_threshold=0.6,
+                low_text=0.3,
+                mag_ratio=1.5,
+                width_ths=0.3,
+            )
 
             st.subheader("📖 Extracted Plate Text:")
+
+            # Drop small boxes (e.g., the sticker) relative to the tallest box
+            if results_ocr:
+                heights = [abs(t[0][2][1] - t[0][0][1]) for t in results_ocr]
+                max_h = max(heights)
+                results_ocr = [t for t, hh in zip(results_ocr, heights) if hh > 0.6 * max_h]
+
             if results_ocr:
                 # Sort left-to-right, keep confident detections, and join
                 results_ocr.sort(key=lambda x: x[0][0][0])
